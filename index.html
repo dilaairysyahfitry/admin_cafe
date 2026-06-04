@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Cloud Server</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+        body { background: #f1f3f5; color: #333; display: flex; min-height: 100vh; }
+        .sidebar { width: 240px; background: #212529; color: white; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .sidebar h2 { font-size: 1.2rem; text-align: center; color: #c29b74; border-bottom: 1px solid #495057; padding-bottom: 15px; }
+        .nav-btn { background: transparent; color: #adb5bd; border: none; text-align: left; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 0.9rem; }
+        .nav-btn.active { background: #343a40; color: white; font-weight: 500; }
+        .main-content { flex: 1; padding: 30px; overflow-y: auto; }
+        .panel { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.02); display: none; }
+        .panel.active { display: block; }
+        .form-box { background: #f8f9fa; border: 1px solid #e9ecef; padding: 20px; border-radius: 8px; margin-bottom: 25px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; align-items: flex-end; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 0.85rem; font-weight: 600; color: #495057; }
+        .form-control { padding: 8px 12px; border: 1px solid #ced4da; border-radius: 6px; font-size: 0.9rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #dee2e6; font-size: 0.9rem; }
+        th { background: #f8f9fa; font-weight: 600; }
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; padding: 4px 10px; font-size: 0.8rem; }
+        .select-status { padding: 6px; border-radius: 4px; border: 1px solid #ced4da; font-weight: 600; }
+        .toast-notif { display: none; background: #28a745; color: white; padding: 15px 25px; position: fixed; top: 20px; right: 20px; border-radius: 8px; font-weight: 600; box-shadow: 0 5px 15px rgba(0,0,0,0.2); z-index: 1000; animation: meluncur 0.4s ease; }
+        @keyframes meluncur { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    </style>
+</head>
+<body>
+
+    <div class="toast-notif" id="notifPop">🔔 PING! Ada Pesanan Masuk Terbaru!</div>
+
+    <div class="sidebar">
+        <h2>🔧 Sistem Cloud Cafe</h2>
+        <button class="nav-btn active" onclick="switchPanel('orders', this)">Monitor Pesanan Masuk</button>
+        <button class="nav-btn" onclick="switchPanel('menu', this)">Kelola & Tambah Menu</button>
+    </div>
+
+    <div class="main-content">
+        <div style="display:flex; justify-content:space-between; margin-bottom:20px; align-items:center;">
+            <h1>Dashboard Live Kasir (Online)</h1>
+            <button onclick="if(confirm('Hapus seluruh riwayat pesanan?')){ fetch(`${FIREBASE_URL}/cafeOrders.json`, {method:'DELETE'}).then(()=>loadDashboardData()); }" style="background:#dc3545; color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:0.8rem;">Reset Riwayat Pesanan</button>
+        </div>
+
+        <div class="panel active" id="panelOrders">
+            <h3>Daftar Antrean Orderan (Real-time Cloud)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Waktu / ID</th>
+                        <th>Nama Pelanggan</th>
+                        <th>No Meja</th>
+                        <th>Detail Item</th>
+                        <th>Total Tagihan</th>
+                        <th>Proses / Ubah Status</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelAdminOrders"></tbody>
+            </table>
+        </div>
+
+        <div class="panel" id="panelMenu">
+            <h3>Tambah & Modifikasi Etalase Menu</h3>
+            <div class="form-box">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Nama Menu</label>
+                        <input type="text" id="menuName" class="form-control" placeholder="Contoh: Kopi Mocha">
+                    </div>
+                    <div class="form-group">
+                        <label>Harga Jual (Rp)</label>
+                        <input type="number" id="menuPrice" class="form-control" placeholder="25000">
+                    </div>
+                    <div class="form-group">
+                        <label>Ikon Emoji</label>
+                        <input type="text" id="menuIcon" class="form-control" placeholder="☕, 🍰, 🥤">
+                    </div>
+                    <button class="btn btn-success" onclick="simpanMenuBaru()">Publish Menu Baru ✨</button>
+                </div>
+            </div>
+
+            <h3>Daftar Menu Jualan Aktif</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Ikon</th>
+                        <th>Nama Hidangan</th>
+                        <th>Harga Satuan</th>
+                        <th style="width: 100px;">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelAdminMenu"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const FIREBASE_URL = "MASUKKAN_URL_FIREBASE_ANDA"; // ganti dengan URL Firebase Anda
+
+        let jumlahOrderanLama = 0;
+
+        function mainkanSuaraNotifikasi() {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = context.createOscillator();
+            const gain = context.createGain();
+            osc.connect(gain); gain.connect(context.destination);
+            osc.type = "sine"; osc.frequency.value = 587.33;
+            gain.gain.setValueAtTime(0.3, context.currentTime);
+            osc.start(); osc.stop(context.currentTime + 0.15);
+        }
+
+        function switchPanel(panelId, btn) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(panelId === 'orders' ? 'panelOrders' : 'panelMenu').classList.add('active');
+            btn.classList.add('active');
+            loadDashboardData();
+        }
+
+        function loadDashboardData() {
+            // Ambil Orderan dari Firebase
+            fetch(`${FIREBASE_URL}/cafeOrders.json`)
+            .then(res => res.json())
+            .then(data => {
+                const oBody = document.getElementById('tabelAdminOrders');
+                if(!data) {
+                    oBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#999; padding:20px 0;">Belum ada pesanan masuk.</td></tr>`;
+                    jumlahOrderanLama = 0;
+                    return;
+                }
+
+                // Hitung deteksi orderan baru untuk bunyikan suara bel otomatis
+                let keys = Object.keys(data);
+                if(keys.length > jumlahOrderanLama && jumlahOrderanLama !== 0) {
+                    mainkanSuaraNotifikasi();
+                    const pop = document.getElementById('notifPop');
+                    pop.style.display = 'block';
+                    setTimeout(() => { pop.style.display = 'none'; }, 4000);
+                }
+                jumlahOrderanLama = keys.length;
+
+                oBody.innerHTML = '';
+                keys.reverse().forEach(key => {
+                    const ord = data[key];
+                    oBody.innerHTML += `
+                        <tr style="background: ${ord.status === 'Pending' ? '#fffdf0' : 'white'}">
+                            <td><strong>${ord.id}</strong><br><small style="color:#888;">${ord.time}</small></td>
+                            <td><strong>${ord.customer}</strong></td>
+                            <td><span style="background:#e9ecef; padding:4px 8px; border-radius:4px; font-weight:600;">${ord.table}</span></td>
+                            <td>${ord.items}</td>
+                            <td><strong>Rp ${ord.total.toLocaleString('id-ID')}</strong></td>
+                            <td>
+                                <select class="select-status" onchange="ubahStatusKerja('${ord.id}', this.value)" style="color:${ord.status==='Selesai'?'green':'#e67e22'}">
+                                    <option value="Pending" ${ord.status === 'Pending' ? 'selected' : ''}>⏳ Pending</option>
+                                    <option value="Memasak" ${ord.status === 'Memasak' ? 'selected' : ''}>🔥 Memasak</option>
+                                    <option value="Selesai" ${ord.status === 'Selesai' ? 'selected' : ''}>✓ Selesai</option>
+                                </select>
+                            </td>
+                        </tr>`;
+                });
+            });
+
+            // Ambil Menu dari Firebase
+            fetch(`${FIREBASE_URL}/cafeMenu.json`)
+            .then(res => res.json())
+            .then(data => {
+                const mBody = document.getElementById('tabelAdminMenu');
+                mBody.innerHTML = '';
+                if(!data) return;
+                Object.keys(data).forEach(key => {
+                    const item = data[key];
+                    mBody.innerHTML += `
+                        <tr>
+                            <td style="font-size:1.5rem;">${item.icon || '🍽️'}</td>
+                            <td><strong>${item.name}</strong></td>
+                            <td><strong>Rp ${item.price.toLocaleString('id-ID')}</strong></td>
+                            <td><button class="btn btn-danger" onclick="hapusMenuDariToko('${key}')">Hapus</button></td>
+                        </tr>`;
+                });
+            });
+        }
+
+        function ubahStatusKerja(id, statusBaru) {
+            fetch(`${FIREBASE_URL}/cafeOrders/${id}/status.json`, {
+                method: 'PUT',
+                body: JSON.stringify(statusBaru)
+            }).then(() => loadDashboardData());
+        }
+
+        function simpanMenuBaru() {
+            const name = document.getElementById('menuName').value.trim();
+            const price = parseInt(document.getElementById('menuPrice').value);
+            const icon = document.getElementById('menuIcon').value.trim() || '🍽️';
+
+            if(!name || !price) return alert("Mohon isi Nama Menu dan Harga!");
+
+            const menuBaru = { name, price, icon };
+            
+            fetch(`${FIREBASE_URL}/cafeMenu.json`, {
+                method: 'POST', // generate id acak dari firebase otomatis
+                body: JSON.stringify(menuBaru)
+            }).then(() => {
+                loadDashboardData();
+                document.getElementById('menuName').value = '';
+                document.getElementById('menuPrice').value = '';
+                document.getElementById('menuIcon').value = '';
+            });
+        }
+
+        function hapusMenuDariToko(key) {
+            if(confirm("Hapus menu ini?")) {
+                fetch(`${FIREBASE_URL}/cafeMenu/${key}.json`, { method: 'DELETE' })
+                .then(() => loadDashboardData());
+            }
+        }
+
+        // Jalankan pengecekan real-time berbasis jaringan cloud internet setiap 3 detik
+        loadDashboardData();
+        setInterval(loadDashboardData, 3000);
+    </script>
+</body>
+</html>
